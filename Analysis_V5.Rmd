@@ -1,0 +1,1466 @@
+---
+title: 'Analysis_V4: Content'
+author: "Anna Rui Ern Sim"
+date: "2023-05-13"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3")
+setwd("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3")
+getwd()
+```
+
+# Data Cleaning
+
+## Combining CSV files into another (listed from another wd)
+```{r}
+# #list csv files in working directory
+# csv_files <- list.files(pattern = ".csv")
+# # loops through all CSV files and reads them into separate data frames with new names
+# for (i in seq_along(csv_files)) {
+#   new_name <- paste0("dataset", i) # create new name for the data frame
+#   assign(new_name, read.csv(csv_files[i])) # assign data frame to the new name
+# }
+# # create a list of data frames with new names
+# datasets <- list(dataset1, dataset2, dataset3, dataset4, dataset5, dataset6, dataset7, dataset8, dataset9, dataset10, dataset11, dataset12, dataset13)
+# 
+# # combine into one data frame
+# combined_data <- do.call(rbind, datasets)
+# View(combined_data)
+# 
+# # Export combined_data to a CSV file
+# write.csv(combined_data, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/combined_data.csv", row.names = FALSE)
+```
+
+
+## Cleaning combined data
+```{r}
+#load dataset
+combined_data <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/combined_data.csv")
+
+# Convert tweet_time to a date format
+combined_data$publish_date <- as.Date(combined_data$publish_date, format="%m/%d/%Y %H:%M")
+# Filter to only englih
+data_clean <- combined_data %>% filter(language == "English")
+
+#data_clean <- combined_data
+# Remove unnecessary columns
+data_clean <- dplyr::select(data_clean, -region, -language, -harvested_date, -article_url, -tco1_step1, -tco2_step1, -tco3_step1, -new_june_2018, -following, -followers, -updates)
+
+# create a function to extract hashtags
+extract_hashtags <- function(text) {
+  hashtags <- str_extract_all(text, "#\\S+")
+  if (length(hashtags[[1]]) == 0) {
+    return(NA)
+  } else {
+    hashtags <- gsub("#", "", unlist(hashtags))
+    return(paste(hashtags, collapse = ", "))
+  }
+}
+
+# apply the function to the "content" column and add a new column called "hashtags"
+data_clean$hashtags <- sapply(data_clean$content, extract_hashtags)
+#remove hashtags from "content" column without affecting "hashtags" column
+data_clean$content <- str_replace_all(data_clean$content, "#\\S+", "") 
+data_clean$content <- gsub("http\\S+|www.\\S+", "", data_clean$content) #remove URl
+data_clean$content <- gsub("@\\S+", "", data_clean$content) #removes @tags
+data_clean$content <- gsub("[^\x01-\x7F]", "", data_clean$content) #rm non-ASCII char. (emojis)
+data_clean$content <- gsub("'", "", data_clean$content) #rm apostrophes
+
+# check for cells with only whitespace
+whitespace_cells <- grepl("^\\s*$", data_clean$content)
+whitespace_rows <- data_clean[whitespace_cells, ]
+print(whitespace_rows)
+data_clean <- data_clean[!whitespace_cells, ] #rm rows with only whitespace in content
+# View(data_clean) #now all rows with only whitespace are removed
+whitespace_cells <- grepl("^\\s*$", data_clean$content)
+whitespace_rows <- data_clean[whitespace_cells, ]
+print(whitespace_rows)
+
+# Check for blank cells in the "content" column of data_clean
+blank_cells <- is.na(data_clean$content) | nchar(data_clean$content) == 0
+sum(blank_cells) #no blank cells
+
+# View(data_clean)
+
+yr2016 <- data_clean %>%
+  filter(publish_date >= "2016-01-08" & publish_date <= "2017-01-07")
+
+write.csv(yr2016, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/yr2016.csv", row.names = FALSE)
+```
+
+## Create separate data sets for each month
+Because the 2016 US presidential election was held on the 8th of November 2016, the month datasets will be as follows:
+01. Jan 8 to Feb 7 2016 (jan)
+02. Feb 8 to Mar 7 (feb)
+03. Mar 8 to Apr 7 (mar)
+04. Apr 8 to May 7 (apr)
+05. May 8 to Jun 7 (may)
+06. Jun 8 to Jul 7 (jun)
+07. Jul 8 to Aug 7 (jul)
+08. Aug 8 to Sep 7 (aug)
+09. Sep 8 to Oct 7 (sep)
+10. Oct 8 to Nov 7 (oct)
+11. Nov 8 to Dec 7 (nov)
+12. Dec 8 to Jan 7 2017 (dec)
+```{r}
+# Filter by date and language (YYYY-MM-DD)
+jan <- data_clean %>%
+  filter(publish_date >= "2016-01-08" & publish_date <= "2016-02-07")
+feb <- data_clean %>%
+  filter(publish_date >= "2016-02-08" & publish_date <= "2016-03-07")
+mar <- data_clean %>%
+  filter(publish_date >= "2016-03-08" & publish_date <= "2016-04-07")
+apr <- data_clean %>%
+  filter(publish_date >= "2016-04-08" & publish_date <= "2016-05-07")
+may <- data_clean %>%
+  filter(publish_date >= "2016-05-08" & publish_date <= "2016-06-07")
+jun <- data_clean %>%
+  filter(publish_date >= "2016-06-08" & publish_date <= "2016-07-07")
+jul <- data_clean %>%
+  filter(publish_date >= "2016-07-08" & publish_date <= "2016-08-07")
+aug <- data_clean %>%
+  filter(publish_date >= "2016-08-08" & publish_date <= "2016-09-07")
+sep <- data_clean %>%
+  filter(publish_date >= "2016-09-08" & publish_date <= "2016-10-07")
+oct <- data_clean %>%
+  filter(publish_date >= "2016-10-08" & publish_date <= "2016-11-07")
+nov <- data_clean %>%
+  filter(publish_date >= "2016-11-08" & publish_date <= "2016-12-07")
+dec <- data_clean %>%
+  filter(publish_date >= "2016-12-08" & publish_date <= "2017-01-07")
+```
+
+## Write csv for each month
+```{r}
+#jan
+write.csv(jan, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/jan.csv", row.names = FALSE)
+#feb
+write.csv(feb, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/feb.csv", row.names = FALSE)
+#mar
+write.csv(mar, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/mar.csv", row.names = FALSE)
+#apr
+write.csv(apr, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/apr.csv", row.names = FALSE)
+#may
+write.csv(may, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/may.csv", row.names = FALSE)
+#jun
+write.csv(jun, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/jun.csv", row.names = FALSE)
+#jul
+write.csv(jul, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/jul.csv", row.names = FALSE)
+#aug
+write.csv(aug, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/aug.csv", row.names = FALSE)
+#sep
+write.csv(sep, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/sep.csv", row.names = FALSE)
+#oct
+write.csv(oct, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/oct.csv", row.names = FALSE)
+#nov
+write.csv(nov, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/nov.csv", row.names = FALSE)
+#dec
+write.csv(dec, file = "C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/dec.csv", row.names = FALSE)
+
+```
+
+***
+# Data Transformation
+
+## yr2016 Content
+```{r}
+#read in file
+yr2016 <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/yr2016.csv")
+
+yr_cont <- yr2016[, c("tweet_id", "content")]
+colnames(yr_cont) <- c("doc_id", "text")
+# View(yr_cont)
+
+#remove punctuation and special characters
+yr_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", yr_cont$text)
+# Rm numbers
+yr_cont$text <- gsub("[[:digit:]]+", "", yr_cont$text)
+
+# check for cells with only whitespace
+yr_ws_cells <- grepl("^\\s*$", yr_cont$text)
+yr_ws_rows <- yr_cont[yr_ws_cells, ]
+print(yr_ws_rows)
+yrC <- yr_cont[!yr_ws_cells, ] #rm rows with only whitespace in content
+
+yr_ws_cells <- grepl("^\\s*$", yrC$text)
+yr_ws_rows <- yrC[yr_ws_cells, ]
+print(yr_ws_rows)
+# View(yrC)
+
+
+yrC1 <- yrC$text #only content
+# View(yrC1)
+
+dtm_yrC <- yrC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_yrC
+
+dfm_yrC <- dfm(dtm_yrC)
+dfm_yrC <- dfm_trim(dfm_yrC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_yrCT <- dfm_yrC[rowSums(dfm_yrC) > 0,]
+dtm_yrCT <- convert(dfm_yrCT, to = "tm")
+```
+
+## Jan Content
+```{r January content}
+library(readr)
+library(dplyr)
+library(stringr)
+library(data.table)
+library(quanteda)
+
+#read in file
+jan <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/jan.csv")
+
+jan_cont <- jan[, c("tweet_id", "content")] #extract tweet_id as well to maintain structure
+colnames(jan_cont) <- c("doc_id", "text")
+# View(jan_cont)
+
+#remove punctuation and special characters
+jan_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", jan_cont$text)
+# Rm numbers
+jan_cont$text <- gsub("[[:digit:]]+", "", jan_cont$text)
+
+# check for cells with only whitespace
+jan_ws_cells <- grepl("^\\s*$", jan_cont$text)
+jan_ws_rows <- jan_cont[jan_ws_cells, ]
+print(jan_ws_rows)
+janC <- jan_cont[!jan_ws_cells, ] #rm rows with only whitespace in content
+
+jan_ws_cells <- grepl("^\\s*$", janC$text)
+jan_ws_rows <- janC[jan_ws_cells, ]
+print(jan_ws_rows)
+# View(janC)
+
+
+janC1 <- janC$text #only content
+# View(janC1)
+
+dtm_janC <- janC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |> 
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                       
+  tokens_wordstem()                                                      
+dtm_janC
+
+dfm_janC <- dfm(dtm_janC)
+dfm_janC <- dfm_trim(dfm_janC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_janCT <- dfm_janC[rowSums(dfm_janC) > 0,]
+dtm_janCT <- convert(dfm_janCT, to = "tm")
+```
+
+## Feb Content
+```{r}
+#read in file
+feb <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/feb.csv")
+
+feb_cont <- feb[, c("tweet_id", "content")]
+colnames(feb_cont) <- c("doc_id", "text")
+# View(feb_cont)
+
+#remove punctuation and special characters
+feb_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", feb_cont$text)
+# Rm numbers
+feb_cont$text <- gsub("[[:digit:]]+", "", feb_cont$text)
+
+# check for cells with only whitespace
+feb_ws_cells <- grepl("^\\s*$", feb_cont$text)
+feb_ws_rows <- feb_cont[feb_ws_cells, ]
+print(feb_ws_rows)
+febC <- feb_cont[!feb_ws_cells, ] #rm rows with only whitespace in content
+
+feb_ws_cells <- grepl("^\\s*$", febC$text)
+feb_ws_rows <- febC[feb_ws_cells, ]
+print(feb_ws_rows)
+# View(febC)
+
+
+febC1 <- febC$text #only content
+# View(febC1)
+
+dtm_febC <- febC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |> 
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                     
+dtm_febC
+
+dfm_febC <- dfm(dtm_febC)
+dfm_febC <- dfm_trim(dfm_febC, min_docfreq = 5) #convert to dfm and trim
+dfm_febC
+# Remove rows with all zero values
+dfm_febCT <- dfm_febC[rowSums(dfm_febC) > 0,]
+dtm_febCT <- convert(dfm_febCT, to = "tm")
+```
+
+## mar Content
+```{r mar content}
+#read in file
+mar <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/mar.csv")
+
+mar_cont <- mar[, c("tweet_id", "content")]
+colnames(mar_cont) <- c("doc_id", "text")
+# View(mar_cont)
+
+#remove punctuation and special characters
+mar_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", mar_cont$text)
+# Rm numbers
+mar_cont$text <- gsub("[[:digit:]]+", "", mar_cont$text)
+
+# check for cells with only whitespace
+mar_ws_cells <- grepl("^\\s*$", mar_cont$text)
+mar_ws_rows <- mar_cont[mar_ws_cells, ]
+print(mar_ws_rows)
+marC <- mar_cont[!mar_ws_cells, ] #rm rows with only whitespace in content
+
+mar_ws_cells <- grepl("^\\s*$", marC$text)
+mar_ws_rows <- marC[mar_ws_cells, ]
+print(mar_ws_rows)
+# View(marC)
+
+
+marC1 <- marC$text #only content
+# View(marC1)
+
+dtm_marC <- marC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                  
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_marC
+
+dfm_marC <- dfm(dtm_marC)
+dfm_marC <- dfm_trim(dfm_marC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_marCT <- dfm_marC[rowSums(dfm_marC) > 0,]
+dtm_marCT <- convert(dfm_marCT, to = "tm")
+```
+
+## apr content
+```{r apr content}
+#read in file
+apr <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/apr.csv")
+
+apr_cont <- apr[, c("tweet_id", "content")]
+colnames(apr_cont) <- c("doc_id", "text")
+# View(apr_cont)
+
+#remove punctuation and special characters
+apr_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", apr_cont$text)
+# Rm numbers
+apr_cont$text <- gsub("[[:digit:]]+", "", apr_cont$text)
+
+# check for cells with only whitespace
+apr_ws_cells <- grepl("^\\s*$", apr_cont$text)
+apr_ws_rows <- apr_cont[apr_ws_cells, ]
+print(apr_ws_rows)
+aprC <- apr_cont[!apr_ws_cells, ] #rm rows with only whitespace in content
+
+apr_ws_cells <- grepl("^\\s*$", aprC$text)
+apr_ws_rows <- aprC[apr_ws_cells, ]
+print(apr_ws_rows)
+# View(aprC)
+
+
+aprC1 <- aprC$text #only content
+# View(aprC1)
+#aprC2 <- tokens(aprC1) #tokenise
+
+dtm_aprC <- aprC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_aprC
+
+dfm_aprC <- dfm(dtm_aprC)
+dfm_aprC <- dfm_trim(dfm_aprC, min_docfreq = 5) #convert to dfm and trim
+
+
+# Remove rows with all zero values
+dfm_aprCT <- dfm_aprC[rowSums(dfm_aprC) > 0,]
+dtm_aprCT <- convert(dfm_aprCT, to = "tm")
+```
+
+## may Content
+```{r may content}
+#read in file
+may <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/may.csv")
+
+may_cont <- may[, c("tweet_id", "content")]
+colnames(may_cont) <- c("doc_id", "text")
+# View(may_cont)
+
+#remove punctuation and special characters
+may_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", may_cont$text)
+# Rm numbers
+may_cont$text <- gsub("[[:digit:]]+", "", may_cont$text)
+
+# check for cells with only whitespace
+may_ws_cells <- grepl("^\\s*$", may_cont$text)
+may_ws_rows <- may_cont[may_ws_cells, ]
+print(may_ws_rows)
+mayC <- may_cont[!may_ws_cells, ] #rm rows with only whitespace in content
+
+may_ws_cells <- grepl("^\\s*$", mayC$text)
+may_ws_rows <- mayC[may_ws_cells, ]
+print(may_ws_rows)
+# View(mayC)
+
+
+mayC1 <- mayC$text #only content
+# View(mayC1)
+
+dtm_mayC <- mayC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_mayC
+
+dfm_mayC <- dfm(dtm_mayC)
+dfm_mayC <- dfm_trim(dfm_mayC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_mayCT <- dfm_mayC[rowSums(dfm_mayC) > 0,]
+dtm_mayCT <- convert(dfm_mayCT, to = "tm")
+```
+
+## jun Content
+```{r jun content}
+#read in file
+jun <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/jun.csv")
+
+jun_cont <- jun[, c("tweet_id", "content")]
+colnames(jun_cont) <- c("doc_id", "text")
+# View(jun_cont)
+
+#remove punctuation and special characters
+jun_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", jun_cont$text)
+# Rm numbers
+jun_cont$text <- gsub("[[:digit:]]+", "", jun_cont$text)
+
+# check for cells with only whitespace
+jun_ws_cells <- grepl("^\\s*$", jun_cont$text)
+jun_ws_rows <- jun_cont[jun_ws_cells, ]
+print(jun_ws_rows)
+junC <- jun_cont[!jun_ws_cells, ] #rm rows with only whitespace in content
+
+jun_ws_cells <- grepl("^\\s*$", junC$text)
+jun_ws_rows <- junC[jun_ws_cells, ]
+print(jun_ws_rows)
+# View(junC)
+
+
+junC1 <- junC$text #only content
+
+dtm_junC <- junC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_junC
+
+dfm_junC <- dfm(dtm_junC)
+dfm_junC <- dfm_trim(dfm_junC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_junCT <- dfm_junC[rowSums(dfm_junC) > 0,]
+dtm_junCT <- convert(dfm_junCT, to = "tm")
+```
+
+## jul Content
+```{r jul content}
+#read in file
+jul <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/jul.csv")
+
+jul_cont <- jul[, c("tweet_id", "content")]
+colnames(jul_cont) <- c("doc_id", "text")
+# View(jul_cont)
+
+#remove punctuation and special characters
+jul_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", jul_cont$text)
+# Rm numbers
+jul_cont$text <- gsub("[[:digit:]]+", "", jul_cont$text)
+
+# check for cells with only whitespace
+jul_ws_cells <- grepl("^\\s*$", jul_cont$text)
+jul_ws_rows <- jul_cont[jul_ws_cells, ]
+print(jul_ws_rows)
+julC <- jul_cont[!jul_ws_cells, ] #rm rows with only whitespace in content
+
+jul_ws_cells <- grepl("^\\s*$", julC$text)
+jul_ws_rows <- julC[jul_ws_cells, ]
+print(jul_ws_rows)
+# View(julC)
+
+
+julC1 <- julC$text #only content
+# View(julC1)
+
+dtm_julC <- julC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_julC
+
+dfm_julC <- dfm(dtm_julC)
+dfm_julC <- dfm_trim(dfm_julC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_julCT <- dfm_julC[rowSums(dfm_julC) > 0,]
+dtm_julCT <- convert(dfm_julCT, to = "tm")
+```
+
+## aug Content
+```{r aug content}
+#read in file
+aug <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/aug.csv")
+
+aug_cont <- aug[, c("tweet_id", "content")]
+colnames(aug_cont) <- c("doc_id", "text")
+# View(aug_cont)
+
+#remove punctuation and special characters
+aug_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", aug_cont$text)
+# Rm numbers
+aug_cont$text <- gsub("[[:digit:]]+", "", aug_cont$text)
+
+# check for cells with only whitespace
+aug_ws_cells <- grepl("^\\s*$", aug_cont$text)
+aug_ws_rows <- aug_cont[aug_ws_cells, ]
+print(aug_ws_rows)
+augC <- aug_cont[!aug_ws_cells, ] #rm rows with only whitespace in content
+
+aug_ws_cells <- grepl("^\\s*$", augC$text)
+aug_ws_rows <- augC[aug_ws_cells, ]
+print(aug_ws_rows)
+# View(augC)
+
+
+augC1 <- augC$text #only content
+# View(augC1)
+
+dtm_augC <- augC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_augC
+
+dfm_augC <- dfm(dtm_augC)
+dfm_augC <- dfm_trim(dfm_augC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_augCT <- dfm_augC[rowSums(dfm_augC) > 0,]
+dtm_augCT <- convert(dfm_augCT, to = "tm")
+```
+
+## sep Content
+```{r sep content}
+#read in file
+sep <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/sep.csv")
+
+sep_cont <- sep[, c("tweet_id", "content")]
+colnames(sep_cont) <- c("doc_id", "text")
+# View(sep_cont)
+
+#remove punctuation and special characters
+sep_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", sep_cont$text)
+# Rm numbers
+sep_cont$text <- gsub("[[:digit:]]+", "", sep_cont$text)
+
+# check for cells with only whitespace
+sep_ws_cells <- grepl("^\\s*$", sep_cont$text)
+sep_ws_rows <- sep_cont[sep_ws_cells, ]
+print(sep_ws_rows)
+sepC <- sep_cont[!sep_ws_cells, ] #rm rows with only whitespace in content
+
+sep_ws_cells <- grepl("^\\s*$", sepC$text)
+sep_ws_rows <- sepC[sep_ws_cells, ]
+print(sep_ws_rows)
+# View(sepC)
+
+
+sepC1 <- sepC$text #only content
+# View(sepC1)
+
+dtm_sepC <- sepC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_sepC
+
+dfm_sepC <- dfm(dtm_sepC)
+dfm_sepC <- dfm_trim(dfm_sepC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_sepCT <- dfm_sepC[rowSums(dfm_sepC) > 0,]
+dtm_sepCT <- convert(dfm_sepCT, to = "tm")
+```
+
+## oct Content
+```{r oct content}
+#read in file
+oct <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/oct.csv")
+
+oct_cont <- oct[, c("tweet_id", "content")]
+colnames(oct_cont) <- c("doc_id", "text")
+# View(oct_cont)
+
+#remove punctuation and special characters
+oct_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", oct_cont$text)
+# Rm numbers
+oct_cont$text <- gsub("[[:digit:]]+", "", oct_cont$text)
+
+# check for cells with only whitespace
+oct_ws_cells <- grepl("^\\s*$", oct_cont$text)
+oct_ws_rows <- oct_cont[oct_ws_cells, ]
+print(oct_ws_rows)
+octC <- oct_cont[!oct_ws_cells, ] #rm rows with only whitespace in content
+
+oct_ws_cells <- grepl("^\\s*$", octC$text)
+oct_ws_rows <- octC[oct_ws_cells, ]
+print(oct_ws_rows)
+# View(octC)
+
+
+octC1 <- octC$text #only content
+# View(octC1)
+
+dtm_octC <- octC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_octC
+
+dfm_octC <- dfm(dtm_octC)
+dfm_octC <- dfm_trim(dfm_octC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_octCT <- dfm_octC[rowSums(dfm_octC) > 0,]
+dtm_octCT <- convert(dfm_octCT, to = "tm")
+```
+
+## nov Content
+```{r nov content}
+#read in file
+nov <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/nov.csv")
+
+nov_cont <- nov[, c("tweet_id", "content")]
+colnames(nov_cont) <- c("doc_id", "text")
+# View(nov_cont)
+
+#remove punctuation and special characters
+nov_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", nov_cont$text)
+# Rm numbers
+nov_cont$text <- gsub("[[:digit:]]+", "", nov_cont$text)
+
+# check for cells with only whitespace
+nov_ws_cells <- grepl("^\\s*$", nov_cont$text)
+nov_ws_rows <- nov_cont[nov_ws_cells, ]
+print(nov_ws_rows)
+novC <- nov_cont[!nov_ws_cells, ] #rm rows with only whitespace in content
+
+nov_ws_cells <- grepl("^\\s*$", novC$text)
+nov_ws_rows <- novC[nov_ws_cells, ]
+print(nov_ws_rows)
+# View(novC)
+
+
+novC1 <- novC$text #only content
+# View(novC1)
+
+dtm_novC <- novC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_novC
+
+dfm_novC <- dfm(dtm_novC)
+dfm_novC <- dfm_trim(dfm_novC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_novCT <- dfm_novC[rowSums(dfm_novC) > 0,]
+dtm_novCT <- convert(dfm_novCT, to = "tm")
+```
+
+## dec Content
+```{r dec content}
+#read in file
+dec <- read.csv("C:/Users/ASUS/Documents/Jacobs University/YR3_Sem2/Thesis Course/Final Data/russian-troll-tweets-master/Analysis_V3/dec.csv")
+
+dec_cont <- dec[, c("tweet_id", "content")]
+colnames(dec_cont) <- c("doc_id", "text")
+# View(dec_cont)
+
+#remove punctuation and special characters
+dec_cont$text <- gsub("[^[:alnum:][:space:]]+", " ", dec_cont$text)
+# Rm numbers
+dec_cont$text <- gsub("[[:digit:]]+", "", dec_cont$text)
+
+# check for cells with only whitespace
+dec_ws_cells <- grepl("^\\s*$", dec_cont$text)
+dec_ws_rows <- dec_cont[dec_ws_cells, ]
+print(dec_ws_rows)
+decC <- dec_cont[!dec_ws_cells, ] #rm rows with only whitespace in content
+
+dec_ws_cells <- grepl("^\\s*$", decC$text)
+dec_ws_rows <- decC[dec_ws_cells, ]
+print(dec_ws_rows)
+# View(decC)
+
+
+decC1 <- decC$text #only content
+# View(decC1)
+
+dtm_decC <- decC1 |>
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) |>   
+  tokens_tolower() |>                                                   
+  tokens_remove(stopwords('en')) |>                                     
+  tokens_wordstem()                                                      
+dtm_decC
+
+dfm_decC <- dfm(dtm_decC)
+dfm_decC <- dfm_trim(dfm_decC, min_docfreq = 5) #convert to dfm and trim
+
+# Remove rows with all zero values
+dfm_decCT <- dfm_decC[rowSums(dfm_decC) > 0,]
+dtm_decCT <- convert(dfm_decCT, to = "tm")
+```
+
+***
+
+# Topic Modelling (LDA)
+
+### yr lda
+```{r yr cont lda model}
+library(topicmodels)
+library(wordcloud)
+library(tidytext)
+library(ggplot2)
+
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_yrC <- LDA(dtm_yrCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+#lda_model <- LDA(dtm_octCT, k = 5, control = list(seed = 1))
+terms(m_yrC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_yrC <- tidy(m_yrC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_yrC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_yrC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Term", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_yrC = posterior(m_yrC)$terms[topic, ]
+topwords_yrC = head(sort(words_yrC, decreasing = T), n=50)
+head(topwords_yrC)
+
+wordcloud(names(topwords_yrC), topwords_yrC)
+
+```
+
+```{r}
+library(LDAvis)
+library(servr)
+dtm = dtm_yrCT[slam::row_sums(dtm_yrCT) > 0, ]
+phi <- as.matrix(posterior(m_yrC)$terms)
+theta <- as.matrix(posterior(m_yrC)$topic)
+vocab <- colnames(phi)
+doc.length = slam::row_sums(dtm)
+term.freq = slam::col_sums(dtm)[match(vocab, colnames(dtm))]
+
+is.null(phi) #check if phi is null
+length(phi) == 0 #check how long phi is
+
+# dim(dtm)
+# dim(dtm_matrix)
+# dim(dtm_trimmed)
+doc.length
+
+
+json = createJSON(phi = phi, theta = theta, vocab = vocab,
+     doc.length = doc.length, term.frequency = term.freq)
+serVis(json)
+
+
+#https://knowledger.rbind.io/post/topic-modeling-using-r/
+#https://github.com/ccs-amsterdam/r-course-material/blob/master/tutorials/r_text_lda.md
+```
+
+## jan lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_janC <- LDA(dtm_janCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_janC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_janC <- tidy(m_janC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_janC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_janC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_janC = posterior(m_janC)$terms[topic,]
+topwords_janC = head(sort(words_janC, decreasing = T), n=50)
+head(topwords_janC)
+
+wordcloud(names(topwords_janC), topwords_janC)
+```
+
+
+## feb lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_febC <- LDA(dtm_febCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_febC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_febC <- tidy(m_febC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_febC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_febC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_febC = posterior(m_febC)$terms[topic,]
+topwords_febC = head(sort(words_febC, decreasing = T), n=50)
+head(topwords_febC)
+
+wordcloud(names(topwords_febC), topwords_febC)
+```
+
+
+## mar lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_marC <- LDA(dtm_marCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_marC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_marC <- tidy(m_marC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_marC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_marC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_marC = posterior(m_marC)$terms[topic,]
+topwords_marC = head(sort(words_marC, decreasing = T), n=50)
+head(topwords_marC)
+
+wordcloud(names(topwords_marC), topwords_marC)
+```
+
+
+## apr lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_aprC <- LDA(dtm_aprCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_aprC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_aprC <- tidy(m_aprC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_aprC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_aprC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_aprC = posterior(m_aprC)$terms[topic,]
+topwords_aprC = head(sort(words_aprC, decreasing = T), n=50)
+head(topwords_aprC)
+
+wordcloud(names(topwords_aprC), topwords_aprC)
+```
+
+
+## may lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_mayC <- LDA(dtm_mayCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_mayC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_mayC <- tidy(m_mayC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_mayC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_mayC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_mayC = posterior(m_mayC)$terms[topic,]
+topwords_mayC = head(sort(words_mayC, decreasing = T), n=50)
+head(topwords_mayC)
+
+wordcloud(names(topwords_mayC), topwords_mayC)
+```
+
+
+## jun lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_junC <- LDA(dtm_junCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_junC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_junC <- tidy(m_junC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_junC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_junC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_junC = posterior(m_junC)$terms[topic,]
+topwords_junC = head(sort(words_junC, decreasing = T), n=50)
+head(topwords_junC)
+
+wordcloud(names(topwords_junC), topwords_junC)
+```
+
+
+## jul lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_julC <- LDA(dtm_julCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_julC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_julC <- tidy(m_julC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_julC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_julC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_julC = posterior(m_julC)$terms[topic,]
+topwords_julC = head(sort(words_julC, decreasing = T), n=50)
+head(topwords_julC)
+
+wordcloud(names(topwords_julC), topwords_julC)
+```
+
+
+## aug lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_augC <- LDA(dtm_augCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_augC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_augC <- tidy(m_augC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_augC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_augC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_augC = posterior(m_augC)$terms[topic,]
+topwords_augC = head(sort(words_augC, decreasing = T), n=50)
+head(topwords_augC)
+
+wordcloud(names(topwords_augC), topwords_augC)
+```
+
+
+## sep lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_sepC <- LDA(dtm_sepCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_sepC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_sepC <- tidy(m_sepC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_sepC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_sepC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_sepC = posterior(m_sepC)$terms[topic,]
+topwords_sepC = head(sort(words_sepC, decreasing = T), n=50)
+head(topwords_sepC)
+
+wordcloud(names(topwords_sepC), topwords_sepC)
+```
+
+
+## oct lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_octC <- LDA(dtm_octCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_octC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_octC <- tidy(m_octC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_octC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_octC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_octC = posterior(m_octC)$terms[topic,]
+topwords_octC = head(sort(words_octC, decreasing = T), n=50)
+head(topwords_octC)
+
+wordcloud(names(topwords_octC), topwords_octC)
+```
+
+
+## nov lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_novC <- LDA(dtm_novCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_novC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_novC <- tidy(m_novC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_novC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_novC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_novC = posterior(m_novC)$terms[topic,]
+topwords_novC = head(sort(words_novC, decreasing = T), n=50)
+head(topwords_novC)
+
+wordcloud(names(topwords_novC), topwords_novC)
+```
+
+
+## dec lda
+```{r}
+set.seed(1234) # set random seed for reproducibility
+#k=5  generates 5 topics
+m_decC <- LDA(dtm_decCT, method = "Gibbs", k = 5, control = list(alpha = 0.1)) 
+terms(m_decC, 15) # display top 15 words for each topic
+
+# display top 15 most probable words per topic
+tt_decC <- tidy(m_decC, matrix = "beta") %>%
+  group_by(topic) %>%
+  top_n(15, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tt_decC
+
+#displays stacked bar plot for each topic, height = probability of corresponding term in topic
+ggplot(tt_decC, aes(x = reorder(term, beta), y = beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) + coord_flip() +
+  facet_wrap(~ factor(topic), scales = "free") +
+  labs(x = "Terms", y = "Probability", title = "Topic-Term Distribution") +
+  scale_y_continuous(limits = c(0, 0.75), expand = c(0, 0))
+
+# posterior distribution of words and documents to topics, which can be used to plot a word cloud of terms proportional to their occurrence
+topic = 5
+words_decC = posterior(m_decC)$terms[topic,]
+topwords_decC = head(sort(words_decC, decreasing = T), n=50)
+head(topwords_decC)
+
+wordcloud(names(topwords_decC), topwords_decC)
+```
+
+***
+
+# Sentiment Analysis
+
+References:
+
+## yr sentiment analysis
+```{r yr content sent}
+library(tidytext)
+library(textdata)
+tokens_yrC <- data_frame(text = yrC1) %>% unnest_tokens(word, text)
+
+# bing
+tokens_yrC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+tokens_yrC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+```
+
+## jan sentiment analysis
+```{r jan content sent}
+
+tokens_janC <- data_frame(text = janC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_janC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_janC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## feb sentiment analysis
+```{r feb content sent}
+
+tokens_febC <- data_frame(text = febC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_febC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_febC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## mar sentiment analysis
+```{r mar content sent}
+
+tokens_marC <- data_frame(text = marC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_marC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_marC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## apr sentiment analysis
+```{r apr content sent}
+
+tokens_aprC <- data_frame(text = aprC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_aprC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_aprC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## may sentiment analysis
+```{r may content sent}
+
+tokens_mayC <- data_frame(text = mayC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_mayC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_mayC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## jun sentiment analysis
+```{r jun content sent}
+
+tokens_junC <- data_frame(text = junC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_junC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_junC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## jul sentiment analysis
+```{r jul content sent}
+
+tokens_julC <- data_frame(text = julC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_julC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_julC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## aug sentiment analysis
+```{r aug content sent}
+
+tokens_augC <- data_frame(text = augC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_augC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_augC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## sep sentiment analysis
+```{r sep content sent}
+
+tokens_sepC <- data_frame(text = sepC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_sepC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_sepC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## oct sentiment analysis
+```{r oct content sent}
+
+tokens_octC <- data_frame(text = octC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_octC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_octC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## nov sentiment analysis
+```{r nov content sent}
+
+tokens_novC <- data_frame(text = novC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_novC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_novC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+## dec sentiment analysis
+```{r dec content sent}
+
+tokens_decC <- data_frame(text = decC1) %>% unnest_tokens(word, text)
+#nrc
+tokens_decC %>%
+  inner_join(get_sentiments("nrc")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative) 
+
+# bing
+tokens_decC %>%
+  inner_join(get_sentiments("bing")) %>% 
+  count(sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
